@@ -70,3 +70,48 @@ proxy_pass http://flaskorderAPI;
 <img width="1342" height="422" alt="image" src="https://github.com/user-attachments/assets/376b1988-c047-4b3b-abbd-0d487c5e69ea" />
 
 27. Restart the nginx service using the following command: "sudo systemctl restart nginx".
+
+CURL commands that are copy-paste ready for validation:
+
+Step 1 — Basic Order Creation 
+
+curl http://ec2-3-143-203-196.us-east-2.compute.amazonaws.com/orders -H "Content-Type:application/json" -H "Idempotency-Key:test-123" -d '{"customer_id":"cust1","item_id":"item1","quantity":1}' 
+
+curl http://ec2-3-143-203-196.us-east-2.compute.amazonaws.com/orders/{order_id}
+
+Step 2 — Retry with Same Idempotency Key 
+
+curl http://ec2-3-143-203-196.us-east-2.compute.amazonaws.com/orders -H "Content-Type:application/json" -H "Idempotency-Key:test-123" -d '{"customer_id":"cust1","item_id":"item1","quantity":1}' 
+
+curl http://ec2-3-143-203-196.us-east-2.compute.amazonaws.com/orders/{order_id} 
+
+Step 3 — Same Key, Different Payload (Conflict Case) 
+
+curl http://ec2-3-143-203-196.us-east-2.compute.amazonaws.com/orders -H "Content-Type:application/json" -H "Idempotency-Key:test-123" -d '{"customer_id":"cust1","item_id":"item1","quantity":5}' 
+
+curl http://ec2-3-143-203-196.us-east-2.compute.amazonaws.com/orders/{order_id} 
+
+Step 4 — Simulated Failure After Commit 
+
+curl http://ec2-3-143-203-196.us-east-2.compute.amazonaws.com/orders -H "Content-Type:application/json" -H "Idempotency-Key:test-fail-1" -H "X-Debug-Fail-After-Commit:true" -d '{"customer_id":"cust2","item_id":"item2","quantity":1}' 
+
+curl http://ec2-3-143-203-196.us-east-2.compute.amazonaws.com/orders/{order_id} 
+
+Step 5 — Retry After Simulated Failure 
+
+curl http://ec2-3-143-203-196.us-east-2.compute.amazonaws.com/orders -H "Content-Type:application/json" -H "Idempotency-Key:test-fail-1" -d '{"customer_id":"cust2","item_id":"item2","quantity":1}' 
+
+curl http://ec2-3-143-203-196.us-east-2.compute.amazonaws.com/orders/{order_id}
+
+Step 6 — Verify Order Exists 
+
+curl http://ec2-3-143-203-196.us-east-2.compute.amazonaws.com/orders/{order_id} 
+
+curl http://ec2-3-143-203-196.us-east-2.compute.amazonaws.com/orders/{order_id}
+
+SQLite commands to check database tables after each validation step:
+
+1. From local directory, enter the following command: "sqlite3 instance/ordersmgmt.db".
+2. Enter the following command to view records in the orders table: "SELECT * FROM orders;".
+3. Enter the following command to view records in the ledger table: "SELECT * FROM ledger;".
+4. Enter the following command to view records in the idempotency_records table: "SELECT * FROM idempotency_records;".
