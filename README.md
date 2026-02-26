@@ -23,4 +23,5 @@ Steps to deploy and run the application:
 4. Complete the following activities using the terminal.
 5. Install python3, pip3, python3-venv, nginx, git.
 6. Create directory named "Assignment2" and cd into "Assignment2".
-7. Paste the following command to pull the contents of the "CS218_A2_EthanMachado" repository: 
+7. Paste the following command to pull the contents of the "CS218_A2_EthanMachado" repository: "git pull https://github.com/ethanmachado2/CS218_A2_EthanMachado.git".
+8. 
