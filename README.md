@@ -7,12 +7,12 @@ EC2 instance type: t3.micro
 AMI name: ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20251212
 
 Security group and port configuration:
-Inbound rules:
+A. Inbound rules:
 1. Protocol: TCP; Port: 22; Source: 0.0.0.0/0
 2. Protocol: TCP; Port: 443; Source: 0.0.0.0/0
 3. Protocol: TCP; Port: 80; Source: 0.0.0.0/0
 4. Protocol: TCP; Port: 8080; Source: 0.0.0.0/0
-Outbound rules:
+B. Outbound rules:
 1. Protocol: All; Port: All; Destination: 0.0.0.0/0
 
 Steps to deploy and run the application:
