@@ -40,7 +40,8 @@ After=network.target
 User=ubuntu
 Group=www-data
 WorkingDirectory=/home/ubuntu/Assignment2/CS218_A2_EthanMachado
-ExecStart=/home/ubuntu/Assignment2/CS218_A2_EthanMachado/.venv/bin/gunicorn -b localhost:8080 main:app
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/home/ubuntu/Assignment2/CS218_A2_EthanMachado/.venv/bin/gunicorn --bind localhost:8080 --capture-output --log-level info main:app
 Restart=always
 [Install]
 WantedBy=multi-user.target
