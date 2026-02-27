@@ -21,7 +21,24 @@ def utcnow():
 def new_id():
     return uuid.uuid4().hex
 
+# function that assigns a randomized ID to requests
 
+@app.before_request
+def start_req():
+    g.uniq_req_id = new_id()
+
+# function to define structured logs
+
+def struct_log(type, message, adt_data = None):
+    log_dict = {
+        "timestamp" : utcnow().isoformat(),
+        "type" : type,
+        "request_id" : getattr(g, 'uniq_req_id', 'N/A'),
+        "message" : message
+    }
+    if adt_data:
+        log_dict.update(adt_data)
+    print(json.dumps(log_dict))
 
 def canonical_json_bytes(payload: dict) -> bytes:
     s = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -134,13 +151,15 @@ def home():
 @app.route("/orders", methods = ["POST"])
 def orders_route():
     # generation of unique request ID
-    g.uniq_req_id = new_id()
+    # g.uniq_req_id = new_id()
     # getting the Idempotency-Key from the request header
     idempotency_key = request.headers.get("Idempotency-Key")
     # debug header created for testing commit without response failure scenario
     fail_after_commit = request.headers.get("X-Debug-Fail-After-Commit") == "true"
+    struct_log("INFO_LOG", "Request received", {"path" : "/orders", "method" : "POST"})
     # check to determine if client requets contains an Idempotency-Key in its header
     if not idempotency_key:
+         struct_log("WARNING_LOG", "Missing Idempotency-Key", {"status code" : 400})
          return make_response(jsonify({"Error" : "Missing Idempotency-Key"}), 400)
     # parsing of JSON request data
     json_req = request.get_json(silent = True)
@@ -148,9 +167,11 @@ def orders_route():
     try:
         req_body = order_schema.load(json_req)
     except ValidationError as e:
+        struct_log("WARNING_LOG", "Invalid request data", {"status code" : 422, "errors" : e.messages})
         return make_response(jsonify({"Error" : "Invalid data", "Messages" : e.messages}), 422)
     # returns HTTP 400 message if request body is not a valid python dictionary object
     if not isinstance(req_body, dict):
+        struct_log("WARNING_LOG", "Invalid JSON body", {"status code" : 400})
         return make_response(jsonify({"Error" : "Invalid JSON body"}), 400)
 
     # creating a request body hash (fingerprint)
@@ -166,15 +187,18 @@ def orders_route():
             # if Idempotency-Key value already exists with different fingerprint, return 409 conflict
             if get_key.req_hash != req_hash:
                 # db.session.rollback() -- rollback not needed here, done later on in process
-                return make_response(jsonify({"Error" : "Existing Idempotency-Key with different payload."}), 409)
+                struct_log("WARNING_LOG", "Existing Idempotency-Key with different payload", {"status code" : 409})
+                return make_response(jsonify({"Error" : "Existing Idempotency-Key with different payload"}), 409)
             # if Idempotency-Key value already exists with completed status, return original request response and status code
             if get_key.req_status == "completed":
                 response = make_response(json.loads(get_key.req_response), get_key.req_code)
                 response.headers["X-Request-ID"] = g.uniq_req_id
+                struct_log("INFO_LOG", "Idempotency-Key and request fingerprint already exist", {"status code" : get_key.req_code})
                 return response
             # if # if Idempotency-Key value already exists with in_process status, return 409 conflict
             if get_key.req_status == "in_process":
                 # db.session.rollback() -- rollback not needed here, done later on in process
+                struct_log("WARNING_LOG", "Existing request with same Idempotency-Key in process", {"status code" : 409})
                 return make_response(jsonify({"Error" : "Request in process"}), 409)
 
         # if # if Idempotency-Key value does not exist, add Idempotency-Key record to idempotency_records table
@@ -191,6 +215,7 @@ def orders_route():
                 db.session.flush()
             except IntegrityError:
                 db.session.rollback()
+                struct_log("WARNING_LOG", "Same Idempotency-Key logged by a different thread", {"status code" : 409})
                 return make_response(jsonify({"Error" : "Conflict: Idempotency-Key was just logged by another thread"}), 409)
     
         # creation of orders table entry
@@ -216,22 +241,27 @@ def orders_route():
         get_key.req_response = json.dumps(response_body)
         get_key.req_status = "completed"
 
+        struct_log("INFO_LOG", "Order created and to be committed", {"order_id" : order_creation.order_id})
+
         # commit idempotency_records, order, and ledger table entries at once
         db.session.commit()
 
         # exception raised if debug header is maintained in client request
         if fail_after_commit:
-            raise Exception("Simulated Failure: Data commited but no response sent")
+            struct_log("WARNING_LOG", "Simulated Failure: Data committed but no response sent", {"status code" : 500})
+            raise Exception("Simulated Failure: Data committed but no response sent")
 
         # return 201 created status code with response body if order is created successfully
         end_response = make_response(jsonify(response_body), 201)
         end_response.headers["X-Request-ID"] = g.uniq_req_id
+        struct_log("INFO_LOG", "Order created and committed", {"order_id" : order_creation.order_id, "status code" : 201})
         return end_response
 
     
     # exception raised with rollback in case of an error
     except Exception as e:
         db.session.rollback()
+        struct_log("ERROR_LOG", "Internal Server Error", {"Error" : str(e), "status_code" : 500})
         error_response = make_response(jsonify({"Error" : str(e)}), 500)
         error_response.headers["X-Request-ID"] = g.uniq_req_id
         return error_response
@@ -242,7 +272,9 @@ def orders_route():
 def get_order(id):
         order = Orders.query.get(id)
         if order:
+            struct_log("INFO_LOG", "Order retrieved successfully", {"order_id" : order.order_id})
             return jsonify({"order_id" : order.order_id, "customer_id" : order.customer_id, "item_id" : order.item_id, "quantity" : order.quantity})
+        struct_log("WARNING_LOG", "Order not found", {"status code" : 404})
         return (jsonify({"Error" : "Order not found"}), 404)
 
 
