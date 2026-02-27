@@ -71,6 +71,7 @@ proxy_pass http://flaskorderAPI;
 <img width="1342" height="422" alt="image" src="https://github.com/user-attachments/assets/376b1988-c047-4b3b-abbd-0d487c5e69ea" />
 
 27. Restart the nginx service using the following command: "sudo systemctl restart nginx".
+28. To enable logging, please use the following command: "sudo journalctl -u CS218_A2_EthanMachado -f".
 
 CURL commands that are copy-paste ready for validation:
 
